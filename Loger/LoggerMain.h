@@ -139,7 +139,7 @@ public:
 		const char* fname = newFilepath.c_str();
 
 		const int len = sizeof(dataTime) + strlen(fname) + 9;
-		char res [len] = "";
+		char res [1000] = "";
 		strcpy(res, fname);
 		strcat(res, "_");
 		strcat(res, dataTime);
