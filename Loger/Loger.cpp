@@ -7,7 +7,7 @@ void logTest(int n)
 
 int main()
 {
-	Logger::fileName("thsfgnffnsn615cgewfcnh9ewy8fhc348fnch4fxn4m2xn6f5mgf65161__6Hui");
+	Logger::fileName("Hu");
 	logTest(1);
 
 	return 0;

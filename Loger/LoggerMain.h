@@ -120,12 +120,11 @@ public:
 		std::string file = match.str();
 		const char* fname = file.c_str();
 
-		char res [sizeof(dataTime) + sizeof(fname) + 9] = "";
+		char* res = new char[strlen(fname) + strlen(dataTime) + 9];
 		strcpy(res, fname);
 		strcat(res, "_");
 		strcat(res, dataTime);
 		strcat(res, ".log");
-		
 		filepath = res;
 	}
 	static void fileName(std::string newFilepath)
@@ -138,15 +137,13 @@ public:
 
 		const char* fname = newFilepath.c_str();
 
-		const int len = sizeof(dataTime) + strlen(fname) + 9;
-		char res [1000] = "";
+		char* res = new char[strlen(fname) + strlen(dataTime) + 9];
 		strcpy(res, fname);
 		strcat(res, "_");
 		strcat(res, dataTime);
 		strcat(res, ".log");
-		std::cout << sizeof(dataTime) << "-data";
-		std::cout << sizeof(newFilepath) << "-name";
 		filepath = res;
+		
 	}
 
 	static void closeFileOutput()
