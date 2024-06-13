@@ -1,6 +1,7 @@
 ﻿#include "LoggerMain.h"
 
 
+
 int main()
 {
 	LOG_FILE_DEFAULT();
