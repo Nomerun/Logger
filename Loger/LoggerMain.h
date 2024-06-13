@@ -1,4 +1,4 @@
-#pragma once
+#pragma once                                        
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include <mutex>
@@ -7,23 +7,24 @@
 
 enum LogPriority
 {
-	Trace, Debug, Info, Warning, Error,
+	Trace, Debug, Info, Warning, Error
 };
 
 class Logger
 {
 private:
-	static LogPriority prior;
-	static std::mutex logMute;
-	static const char* filepath;
-	static FILE* file;
+	LogPriority prior = Trace;
+	std::mutex logMute;
+	const char* filepath = 0;
+	FILE* file = 0;
+	bool NewinFile = false;
+	bool NewinConsole = false;
 
 	template<typename... Args>
-	static void logOutput(bool NewinFile, bool NewinConsole, LogPriority priority, const char* message_priority_str, const char* message, Args...args)
+	void logOutput(const char* fname, int line, LogPriority priority, const char* message_priority_str, const char* message, Args...args)
 	{
-		if (NewinFile)
+		if (get_instance().NewinFile)
 		{
-			enableFileOutput();
 			if (file)
 			{
 				time_t now = time(0);
@@ -31,12 +32,12 @@ private:
 				char dataTime [20];
 				strftime (dataTime, sizeof(dataTime), "%Y-%m-%d %H:%M:%S", timeinfo);
 				
-				fprintf(file, "%s | %s -> ", dataTime, message_priority_str);
+				fprintf(file, "%s | %s | %s%s%d -> ", dataTime, message_priority_str, fname, ":",  line);
 				fprintf(file, message, args...);
 				fprintf(file, "\n");
 			}
 		}
-		if (NewinConsole)
+		if (get_instance().NewinConsole)
 		{
 			if (prior <= priority)
 			{
@@ -47,14 +48,13 @@ private:
 				char dataTime [20];
 				strftime (dataTime, sizeof(dataTime), "%Y-%m-%d %H:%M:%S", timeinfo);
 
-				printf("%s | %s -> ", dataTime, message_priority_str);
+				printf("%s | %s | %s%s%d -> ", dataTime, message_priority_str, fname, ":", line);
 				printf(message, args...);
 				printf("\n");
 			}
 		}
 	}
-
-	static void enableFileOutput()
+	void enableFileOutput()
 	{
 		if(file != 0)
 		{
@@ -70,65 +70,95 @@ private:
 	}
 
 
+
+	Logger()
+	{
+
+	}
+
+	Logger(const Logger&) = delete;
+	Logger& operator = (const Logger&) = delete;
+
+	~Logger()
+	{
+		if (file != 0)
+			fclose(file);
+		file = 0;
+	}
+
+	static Logger& get_instance()
+	{
+		static Logger logger;
+		return logger;
+	}
+
+	//static char createLogOutput () 
+
+
 public:
 	static void setPriority(LogPriority newPriority)
 	{
-		prior = newPriority;
+		get_instance().prior = newPriority;
 	}
 
 	template<typename... Args>
-	static void ifTrace(bool inFile, bool inConsole, const char* message, Args...args)
+	static void ifTrace(const char* file, int line, const char* message, Args...args)
 	{
-		logOutput(inFile, inConsole, Trace, "TRACE", message, args...);
+		get_instance().logOutput(file, line, Trace, "TRACE", message, args...);
 	}
 
 	template<typename... Args>
-	static void ifDebug(bool inFile, bool inConsole, const char* message, Args...args)
+	static void ifDebug(const char* file, int line, const char* message, Args...args)
 	{
-		logOutput(inFile, inConsole, Trace, "DEBUG", message, args...);
+		get_instance().logOutput(file, line, Trace, "DEBUG", message, args...);
 	}
 
 	template<typename... Args>
-	static void ifInfo(bool inFile, bool inConsole, const char* message, Args...args)
-	{	
-		logOutput(inFile, inConsole, Trace, "INFO", message, args...);
+	static void ifInfo(const char* file, int line, const char* message, Args...args)
+	{
+		get_instance().logOutput(file, line, Trace, "INFO", message, args...);
 	}
 
 	template<typename... Args>
-	static void ifWarning(bool inFile, bool inConsole, const char* message, Args...args)
+	static void ifWarning(const char* file, int line, const char* message, Args...args)
 	{
-		logOutput(inFile, inConsole, Trace, "WARNING", message, args...);
+		get_instance().logOutput(file, line, Trace, "WARNING", message, args...);
 	}
 
 	template<typename... Args>
-	static void ifError(bool inFile, bool inConsole, const char* message, Args...args)
+	static void ifError(const char* file, int line, const char* message, Args...args)
 	{
-		logOutput(inFile, inConsole, Trace, "ERROR", message, args...);
+		get_instance().logOutput(file, line, Trace, "ERROR", message, args...);
 	}
 
-	static void fileName()
+	static void enableFile(const char* file)
 	{
+		Logger& logger_instance = get_instance();
+
 		time_t now = time(0);
 		struct tm * timeinfo = localtime(&now);
 		char dataTime[20];
 		strftime (dataTime, sizeof(dataTime), "%Y-%m-%d_%H-%M-%S", timeinfo);	
-		
 
-		std::string progName = __FILE__;
+		std::string progName = file;
     	std::smatch match;
 		regex_search(progName, match, std::regex(R"([ \w-]+?(?=\.))"));
-		std::string file = match.str();
-		const char* fname = file.c_str();
+		progName = match.str();
+		const char* fname = progName.c_str();
 
 		char* res = new char[strlen(fname) + strlen(dataTime) + 9];
 		strcpy(res, fname);
 		strcat(res, "_");
 		strcat(res, dataTime);
 		strcat(res, ".log");
-		filepath = res;
+		get_instance().filepath = res;
+		logger_instance.enableFileOutput();
+		get_instance().NewinFile = true;
 	}
-	static void fileName(std::string newFilepath)
+
+	static void enableFile(std::string newFilepath, const char* file)
 	{
+		Logger& logger_instance = get_instance();
 
 		time_t now = time(0);
 		struct tm * timeinfo = localtime(&now);
@@ -142,23 +172,24 @@ public:
 		strcat(res, "_");
 		strcat(res, dataTime);
 		strcat(res, ".log");
-		filepath = res;
-		
+		get_instance().filepath = res;
+		logger_instance.enableFileOutput();
+		get_instance().NewinFile = true;
 	}
 
-	static void closeFileOutput()
+	static void enableConsole()
 	{
-		fclose(file);
-		file = 0;
+		get_instance().NewinConsole = true;
 	}
 
-	
 	
 };
 
-
-
-LogPriority Logger::prior = Trace;
-std::mutex Logger::logMute;
-const char* Logger::filepath = 0;
-FILE* Logger::file = 0;
+#define LOG_TRACE(message) Logger::ifTrace(__FILE__, __LINE__, "%s", message)
+#define LOG_DEBUG(message) Logger::ifDebug(__FILE__, __LINE__, "%s", message)
+#define LOG_INFO(message) Logger::ifInfo(__FILE__, __LINE__, "%s", message)
+#define LOG_Warning(message) Logger::ifWarning(__FILE__, __LINE__, "%s", message)
+#define LOG_ERROR(message) Logger::ifError(__FILE__, __LINE__, "%s", message)
+#define LOG_CONSOLE() Logger::enableConsole()
+#define LOG_FILE_DEFAULT() Logger::enableFile(__FILE__)
+#define LOG_FILE_CUSTOM(name) Logger::enableFile(name, __FILE__)
