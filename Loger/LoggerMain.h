@@ -1,9 +1,12 @@
 #pragma once                                        
 #define _CRT_SECURE_NO_WARNINGS
+#define thnumber(x) thname(x)
+#define thname(x) th##x
 #include <stdio.h>
 #include <mutex>
 #include <iostream>
 #include <regex>
+#include <thread>
 
 enum LogPriority
 {
@@ -19,35 +22,32 @@ private:
 	FILE* file = 0;
 	bool NewinFile = false;
 	bool NewinConsole = false;
+	std::thread threads[10];
+	int num = 1;
 
 	template<typename... Args>
 	void logOutput(const char* fname, int line, LogPriority priority, const char* message_priority_str, const char* message, Args...args)
 	{
-		if (get_instance().NewinFile)
+		if (prior <= priority)
 		{
-			if (file)
-			{
-				time_t now = time(0);
-				struct tm * timeinfo = localtime(&now);
-				char dataTime [20];
-				strftime (dataTime, sizeof(dataTime), "%Y-%m-%d %H:%M:%S", timeinfo);
-				
-				fprintf(file, "%s | %s | %s%s%d -> ", dataTime, message_priority_str, fname, ":",  line);
-				fprintf(file, message, args...);
-				fprintf(file, "\n");
-			}
-		}
-		if (get_instance().NewinConsole)
-		{
-			if (prior <= priority)
-			{
-				std::lock_guard <std::mutex> lock(logMute);
-				
-				time_t now = time(0);
-				struct tm * timeinfo = localtime(&now);
-				char dataTime [20];
-				strftime (dataTime, sizeof(dataTime), "%Y-%m-%d %H:%M:%S", timeinfo);
+			std::lock_guard <std::mutex> lock(logMute);
 
+			time_t now = time(0);
+			struct tm* timeinfo = localtime(&now);
+			char dataTime[20];
+			strftime(dataTime, sizeof(dataTime), "%Y-%m-%d %H:%M:%S", timeinfo);
+
+			if (get_instance().NewinFile)
+			{
+				if (file)
+				{
+					fprintf(file, "%s | %s | %s%s%d -> ", dataTime, message_priority_str, fname, ":", line);
+					fprintf(file, message, args...);
+					fprintf(file, "\n");
+				}
+			}
+			if (get_instance().NewinConsole)
+			{
 				printf("%s | %s | %s%s%d -> ", dataTime, message_priority_str, fname, ":", line);
 				printf(message, args...);
 				printf("\n");
@@ -67,9 +67,12 @@ private:
 		{
 			printf("Faild to open file at %s", filepath);
 		}
+		else
+		{
+			threads[0] =  std::thread();
+			threads[1] = std::thread();
+		}
 	}
-
-
 
 	Logger()
 	{
