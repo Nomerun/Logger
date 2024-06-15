@@ -1,16 +1,24 @@
 #pragma once                                        
 #define _CRT_SECURE_NO_WARNINGS
-#define thnumber(x) thname(x)
-#define thname(x) th##x
-#include <stdio.h>
-#include <mutex>
 #include <iostream>
+#include <fstream>
+#include <mutex>
 #include <regex>
-#include <thread>
 
 enum LogPriority
 {
 	Trace, Debug, Info, Warning, Error
+};
+
+struct LogFile {
+	std::string filename;
+	std::ofstream file;
+	bool operator==(const LogFile & rhs)
+	{
+		return(filename == rhs.filename);
+	}
+
+	LogFile(const std::string& filename) : filename(filename), file(filename, std::ios::app) {}
 };
 
 class Logger
@@ -20,6 +28,7 @@ private:
 	std::mutex logMute;
 	const char* filepath = 0;
 	FILE* file = 0;
+	std::vector<LogFile> logFiles;
 	bool NewinFile = false;
 	bool NewinConsole = false;
 	std::thread threads[10];
@@ -30,63 +39,57 @@ private:
 	{
 		if (prior <= priority)
 		{
-			std::lock_guard <std::mutex> lock(logMute);
-
+			va_list ar;
 			time_t now = time(0);
 			struct tm* timeinfo = localtime(&now);
 			char dataTime[20];
 			strftime(dataTime, sizeof(dataTime), "%Y-%m-%d %H:%M:%S", timeinfo);
-
 			if (get_instance().NewinFile)
 			{
-				if (file)
-				{
-					fprintf(file, "%s | %s | %s%s%d -> ", dataTime, message_priority_str, fname, ":", line);
-					fprintf(file, message, args...);
-					fprintf(file, "\n");
+				std::lock_guard<std::mutex> lock(logMute);
+				for (auto& logFile : logFiles) {
+					if (logFile.file.is_open()) {
+						char* str = new char[1000];
+						sprintf(str, message, args...);
+						logFile.file << dataTime << " | " << message_priority_str << " | " << fname << ":" << line << " -> " << str << std::endl;
+						delete[] str;
+					}
 				}
 			}
 			if (get_instance().NewinConsole)
 			{
+				std::lock_guard <std::mutex> lock(logMute);
 				printf("%s | %s | %s%s%d -> ", dataTime, message_priority_str, fname, ":", line);
 				printf(message, args...);
 				printf("\n");
 			}
 		}
 	}
-	void enableFileOutput()
+	void enableFileOutput(char fname[])
 	{
-		if(file != 0)
-		{
-			fclose(file);
-		}
-
-		file = fopen(filepath, "a");
-
-		if (file == 0)
-		{
-			printf("Faild to open file at %s", filepath);
-		}
-		else
-		{
-			threads[0] =  std::thread();
-			threads[1] = std::thread();
+		std::lock_guard<std::mutex> lock(logMute);
+		
+		logFiles.push_back(LogFile(fname));
+		if (!logFiles.back().file.is_open()) {
+			std::cerr << "Error opening log file: " << fname << std::endl;
+			logFiles.pop_back();
 		}
 	}
 
-	Logger()
-	{
-
-	}
+	Logger() {}
 
 	Logger(const Logger&) = delete;
 	Logger& operator = (const Logger&) = delete;
 
 	~Logger()
 	{
-		if (file != 0)
-			fclose(file);
-		file = 0;
+		for (auto& logFile : logFiles) 
+		{
+			if (logFile.file.is_open()) 
+			{
+				logFile.file.close();
+			}
+		}
 	}
 
 	static Logger& get_instance()
@@ -95,7 +98,6 @@ private:
 		return logger;
 	}
 
-	//static char createLogOutput () 
 
 
 public:
@@ -154,8 +156,8 @@ public:
 		strcat(res, "_");
 		strcat(res, dataTime);
 		strcat(res, ".log");
-		get_instance().filepath = res;
-		logger_instance.enableFileOutput();
+		//get_instance().filepath = res;
+		logger_instance.enableFileOutput(res);
 		get_instance().NewinFile = true;
 	}
 
@@ -175,8 +177,8 @@ public:
 		strcat(res, "_");
 		strcat(res, dataTime);
 		strcat(res, ".log");
-		get_instance().filepath = res;
-		logger_instance.enableFileOutput();
+		//get_instance().filepath = res;
+		logger_instance.enableFileOutput(res);
 		get_instance().NewinFile = true;
 	}
 
@@ -185,7 +187,32 @@ public:
 		get_instance().NewinConsole = true;
 	}
 
-	
+	static void CloseFiles()
+	{
+		for (auto& logFile : get_instance().logFiles)
+		{
+			if (logFile.file.is_open())
+			{
+				logFile.file.close();
+			}
+		}
+		get_instance().logFiles.clear();
+	}
+
+	static void CloseFile(const char* fname)
+	{
+		for (auto& logFile : get_instance().logFiles)
+		{
+			std::smatch match;
+			regex_search(logFile.filename, match, std::regex(R"(^[^_]*_*(?=_))"));
+			if (match.str() == fname)
+			{
+				logFile.file.close();
+				auto it = std::find(get_instance().logFiles.begin(), get_instance().logFiles.end(), logFile);
+				get_instance().logFiles.erase(it);
+			}
+		}
+	}
 };
 
 #define LOG_TRACE(message) Logger::ifTrace(__FILE__, __LINE__, "%s", message)
@@ -196,3 +223,7 @@ public:
 #define LOG_CONSOLE() Logger::enableConsole()
 #define LOG_FILE_DEFAULT() Logger::enableFile(__FILE__)
 #define LOG_FILE_CUSTOM(name) Logger::enableFile(name, __FILE__)
+#define LOG_CLOSE_ALL() Logger::CloseFiles()
+#define LOG_CLOSE_DEFAULT() Logger::CloseFile(__FILE__)
+#define LOG_CLOSE_CUSTOM(name) Logger::CloseFile(name)
+

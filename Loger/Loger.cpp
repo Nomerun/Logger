@@ -3,29 +3,19 @@
 #include <thread>
 int n = 0;
 
-void hell()
-{
-	n++;
-}
-
-void out()
-{
-	std::cout << n;
-}
 
 int main()
 {
 	LOG_FILE_DEFAULT();
-	LOG_TRACE("nnn");
+	Logger::ifError(__FILE__, __LINE__, "%s----%d", "nenennee", 123);
 	LOG_FILE_CUSTOM("NEW");
-	LOG_DEBUG("123");
-	LOG_FILE_CUSTOM("NEW2");
-	LOG_DEBUG("123443");
-
-	//std::thread th(hell);
-	//std::thread th2(hell);
-	//th.join();
-	//th2.join();
+	LOG_FILE_CUSTOM("NOTTE");
+	LOG_FILE_CUSTOM("NEW");
+	LOG_TRACE("nenennee");
+	LOG_DEBUG("debagigigigi");
+	LOG_CLOSE_CUSTOM("NEW");
+	LOG_DEBUG("deb23235235235235235235i");
+	LOG_TRACE("123");
 
 	return 0;
 }
